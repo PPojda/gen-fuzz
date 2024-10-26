@@ -1,4 +1,3 @@
-import concurrent.futures
 import copy
 import random
 from multiprocessing import Pool
@@ -10,6 +9,7 @@ import skfuzzy as fuzz
 from pandas import Series
 from skfuzzy import control as ctrl
 from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import MinMaxScaler
 
 random.seed = 42
 RANKING_CAPACITY = 50
@@ -25,7 +25,7 @@ COLUMN_RANGE_MAP = {'first_input': FIRST_INPUT_RANGE, 'second_input': SECOND_INP
 input_1 = ctrl.Antecedent(np.arange(*FIRST_INPUT_RANGE, 1), 'first_input')
 input_2 = ctrl.Antecedent(np.arange(*SECOND_INPUT_RANGE, 1), 'second_input')
 output = ctrl.Consequent(np.arange(*OUTPUT_RANGE, 1), 'output')
-
+output.defuzzify_method = 'som'
 
 def input_csv(input):
     with open(input) as f:
@@ -45,7 +45,7 @@ def build_starting_chromosome():
     return chromosome
 
 
-def rating_function(chromosome: Series, inputs_1, inputs_2, outputs):
+def rating_function(chromosome: Series, inputs, outputs, output_sim):
     input_1['low'] = fuzz.trimf(input_1.universe, sorted(chromosome['first_input'][1]))
     input_1['high'] = fuzz.trimf(input_1.universe, sorted(chromosome['first_input'][2]))
     input_2['low'] = fuzz.trimf(input_2.universe, sorted(chromosome['second_input'][1]))
@@ -55,17 +55,9 @@ def rating_function(chromosome: Series, inputs_1, inputs_2, outputs):
     output['medium'] = fuzz.trimf(output.universe, sorted(chromosome['output'][2]))
     output['high'] = fuzz.trimf(output.universe, sorted(chromosome['output'][3]))
 
-    rule1 = ctrl.Rule(input_1['high'] & input_2['high'], output['high'])
-    rule2 = ctrl.Rule(input_1['high'] & input_2['low'], output['medium'])
-    rule3 = ctrl.Rule(input_1['low'] & input_2['high'], output['medium'])
-    rule4 = ctrl.Rule(input_1['low'] & input_2['low'], output['low'])
-
-    output_ctrl = ctrl.ControlSystem([rule1, rule2, rule3, rule4])
-    output_sim = ctrl.ControlSystemSimulation(output_ctrl)
-    output.defuzzify_method = 'som'
     fuzz_outputs = []
 
-    for first, second in zip(inputs_1, inputs_2):
+    for first, second in zip(*inputs):
         output_sim.input['first_input'] = first
         output_sim.input['second_input'] = second
         output_sim.compute()
@@ -84,7 +76,7 @@ def mutate(chromosome: pd.Series):
     return mutated_chromosome
 
 
-def build_starting_population(*inputs, output):
+def build_starting_population(input_values, outputs, sim):
     columns = [('first_input', 1), ('first_input', 2),
                ('second_input', 1), ('second_input', 2),
                ('output', 1), ('output', 2), ('output', 3)]
@@ -96,7 +88,7 @@ def build_starting_population(*inputs, output):
         data=starting_chromosomes)
 
     starting_chromosomes['ratings'] = starting_chromosomes.apply(
-        lambda row: rating_function(row, first_values, second_values, outputs=output_values), axis=1
+        lambda row: rating_function(row, input_values, outputs=outputs, output_sim=sim), axis=1
     )
     starting_chromosomes.sort_values(by=['ratings'], inplace=True)
     return starting_chromosomes
@@ -133,29 +125,49 @@ def generate_new_population(parents_population):
     return new
 
 
-if __name__ == '__main__':
-    input_data = input_csv('output.csv')
-    first_values = [int(row.split(',')[0]) for row in input_data]
-    second_values = [int(row.split(',')[1]) for row in input_data]
-    output_values = [float(row.split(',')[2].strip()) for row in input_data]
+def initialize_fuzzy_logic():
+    input_1['low'] = fuzz.trimf(input_1.universe, [0, 0, 0])
+    input_1['high'] = fuzz.trimf(input_1.universe, [0, 0, 0])
+    input_2['low'] = fuzz.trimf(input_2.universe, [0, 0, 0])
+    input_2['high'] = fuzz.trimf(input_2.universe, [0, 0, 0])
+
+    output['low'] = fuzz.trimf(output.universe, [0, 0, 0])
+    output['medium'] = fuzz.trimf(output.universe, [0, 0, 0])
+    output['high'] = fuzz.trimf(output.universe, [0, 0, 0])
+
+    rule1 = ctrl.Rule(input_1['high'] & input_2['high'], output['high'])
+    rule2 = ctrl.Rule(input_1['high'] & input_2['low'], output['medium'])
+    rule3 = ctrl.Rule(input_1['low'] & input_2['high'], output['medium'])
+    rule4 = ctrl.Rule(input_1['low'] & input_2['low'], output['low'])
+
+    return [rule1, rule2, rule3, rule4]
 
 
-    def rate(row):
-        rating_function(row, first_values, second_values, outputs=output_values)
+def initialize_simulation():
+    rules = initialize_fuzzy_logic()
+    output_ctrl = ctrl.ControlSystem(rules)
+    return ctrl.ControlSystemSimulation(output_ctrl)
 
 
-    population = build_starting_population(first_values, second_values, output=output_values)
-    count = 0
-    while count < 10:
-        population.drop(population.iloc[RANKING_CAPACITY:].index, inplace=True)
-        new_population = generate_new_population(population.copy())
-        with Pool() as pool:
-            new_population['ratings'] = pool.starmap(rating_function, [(row, first_values, second_values, output_values)
-                                                                       for _, row in new_population.iterrows()])
-        new_population.sort_values(by=['ratings'], inplace=True)
-        if population.iloc[0]['ratings'].values[0] <= new_population.iloc[0]['ratings'].values[0]:
-            count += 1
-        else:
-            count = 0
-        population = new_population
-        print(population.iloc[0])
+input_data = input_csv('output.csv')
+first_values = [int(row.split(',')[0]) for row in input_data]
+second_values = [int(row.split(',')[1]) for row in input_data]
+output_values = [float(row.split(',')[2].strip()) for row in input_data]
+
+simulation = initialize_simulation()
+population = build_starting_population(input_values=(first_values, second_values), outputs=output_values, sim=simulation)
+
+count = 0
+while count < 10:
+    population.drop(population.iloc[RANKING_CAPACITY:].index, inplace=True)
+    new_population = generate_new_population(population.copy())
+    with Pool() as pool:
+        new_population['ratings'] = pool.starmap(rating_function, [(row, (first_values, second_values), output_values, rules)
+                                                                   for _, row in new_population.iterrows()])
+    new_population.sort_values(by=['ratings'], inplace=True)
+    if population.iloc[0]['ratings'].values[0] <= new_population.iloc[0]['ratings'].values[0]:
+        count += 1
+    else:
+        count = 0
+    population = new_population
+    print(population.iloc[0])
