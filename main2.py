@@ -20,10 +20,13 @@ input_1 = ctrl.Antecedent(np.arange(0, 11, 1), 'first_input')
 input_2 = ctrl.Antecedent(np.arange(0, 11, 1), 'second_input')
 
 # Membership functions for cost and benefit
-input_1['low'] = fuzz.trimf(input_1.universe, [0, 0, 6])
-input_1['high'] = fuzz.trimf(input_1.universe, [4, 10, 10])
-input_2['low'] = fuzz.trimf(input_2.universe, [0, 0, 6])
-input_2['high'] = fuzz.trimf(input_2.universe, [4, 10, 10])
+input_1['low'] = fuzz.trimf(input_1.universe, [0, 0, 4])
+input_1['medium'] = fuzz.trimf(input_1.universe, [3, 5, 7])
+input_1['high'] = fuzz.trimf(input_1.universe, [6, 10, 10])
+
+input_2['low'] = fuzz.trimf(input_2.universe, [0, 0, 4])
+input_2['medium'] = fuzz.trimf(input_2.universe, [3, 5, 7])
+input_2['high'] = fuzz.trimf(input_2.universe, [6, 10, 10])
 
 # Step 2: Define the fuzzy sets for output variable (cost benefit)
 output = ctrl.Consequent(np.arange(0, 11, 1), 'output')
@@ -34,13 +37,18 @@ output['medium'] = fuzz.trimf(output.universe, [3, 5, 7])
 output['high'] = fuzz.trimf(output.universe, [6, 10, 10])
 
 # Step 3: Define the fuzzy rules
-rule1 = ctrl.Rule(input_1['high'] & input_2['high'], output['high'])
-rule2 = ctrl.Rule(input_1['high'] & input_2['low'], output['medium'])
-rule3 = ctrl.Rule(input_1['low'] & input_2['high'], output['medium'])
-rule4 = ctrl.Rule(input_1['low'] & input_2['low'], output['low'])
+rule1 = ctrl.Rule(input_1['high'] & input_2['high'], output['low'])
+rule2 = ctrl.Rule(input_1['high'] & input_2['medium'], output['low'])
+rule3 = ctrl.Rule(input_1['high'] & input_2['low'], output['medium'])
+rule4 = ctrl.Rule(input_1['medium'] & input_2['high'], output['medium'])
+rule5 = ctrl.Rule(input_1['medium'] & input_2['medium'], output['medium'])
+rule6 = ctrl.Rule(input_1['medium'] & input_2['low'], output['high'])
+rule7 = ctrl.Rule(input_1['low'] & input_2['high'], output['high'])
+rule8 = ctrl.Rule(input_1['low'] & input_2['medium'], output['high'])
+rule9 = ctrl.Rule(input_1['low'] & input_2['low'], output['high'])
 
 # Step 4: Implement the fuzzy inference system
-output_ctrl = ctrl.ControlSystem([rule1, rule2, rule3, rule4])
+output_ctrl = ctrl.ControlSystem([rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8, rule9])
 output_sim = ctrl.ControlSystemSimulation(output_ctrl)
 
 output.defuzzify_method = DefuzzificationMethod.mean_of_maximum.value
