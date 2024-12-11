@@ -3,66 +3,65 @@ from utils import *
 random.seed = 43
 
 
-def create_membership_functions():
-    global input_1, input_2, output
+def create_membership_functions(fuzzy_input_1, fuzzy_input_2, fuzzy_output):
     if MEMBERSHIP_COUNT == 3:
         if FUZZY_TYPE == 3:
-            input_1['low'] = fuzz.trimf(input_1.universe, [0, 30, 50])
-            input_1['medium'] = fuzz.trimf(input_1.universe, [20, 50, 80])
-            input_1['high'] = fuzz.trimf(input_1.universe, [50, 70, 100])
+            fuzzy_input_1['low'] = fuzz.trimf(fuzzy_input_1.universe, [0, 30, 50])
+            fuzzy_input_1['medium'] = fuzz.trimf(fuzzy_input_1.universe, [20, 50, 80])
+            fuzzy_input_1['high'] = fuzz.trimf(fuzzy_input_1.universe, [50, 70, 100])
 
-            input_2['low'] = fuzz.trimf(input_2.universe, [0, 30, 50])
-            input_2['medium'] = fuzz.trimf(input_2.universe, [20, 50, 80])
-            input_2['high'] = fuzz.trimf(input_2.universe, [50, 70, 100])
+            fuzzy_input_2['low'] = fuzz.trimf(fuzzy_input_2.universe, [0, 30, 50])
+            fuzzy_input_2['medium'] = fuzz.trimf(fuzzy_input_2.universe, [20, 50, 80])
+            fuzzy_input_2['high'] = fuzz.trimf(fuzzy_input_2.universe, [50, 70, 100])
 
-            output['low'] = fuzz.trimf(output.universe, [0, 30, 50])
-            output['medium'] = fuzz.trimf(output.universe, [20, 50, 80])
-            output['high'] = fuzz.trimf(output.universe, [50, 70, 100])
+            fuzzy_output['low'] = fuzz.trimf(fuzzy_output.universe, [0, 30, 50])
+            fuzzy_output['medium'] = fuzz.trimf(fuzzy_output.universe, [20, 50, 80])
+            fuzzy_output['high'] = fuzz.trimf(fuzzy_output.universe, [50, 70, 100])
         elif FUZZY_TYPE == 4:
-            input_1['low'] = fuzz.trapmf(input_1.universe, [0, 0, 20, 40])
-            input_1['medium'] = fuzz.trapmf(input_1.universe, [30, 50, 50, 70])
-            input_1['high'] = fuzz.trapmf(input_1.universe, [60, 80, 100, 100])
+            fuzzy_input_1['low'] = fuzz.trapmf(fuzzy_input_1.universe, [0, 0, 20, 40])
+            fuzzy_input_1['medium'] = fuzz.trapmf(fuzzy_input_1.universe, [30, 50, 50, 70])
+            fuzzy_input_1['high'] = fuzz.trapmf(fuzzy_input_1.universe, [60, 80, 100, 100])
 
-            input_2['low'] = fuzz.trapmf(input_2.universe, [0, 0, 20, 40])
-            input_2['medium'] = fuzz.trapmf(input_2.universe, [30, 50, 50, 70])
-            input_2['high'] = fuzz.trapmf(input_2.universe, [60, 80, 100, 100])
+            fuzzy_input_2['low'] = fuzz.trapmf(fuzzy_input_2.universe, [0, 0, 20, 40])
+            fuzzy_input_2['medium'] = fuzz.trapmf(fuzzy_input_2.universe, [30, 50, 50, 70])
+            fuzzy_input_2['high'] = fuzz.trapmf(fuzzy_input_2.universe, [60, 80, 100, 100])
 
-            output['low'] = fuzz.trapmf(output.universe, [0, 0, 20, 40])
-            output['medium'] = fuzz.trapmf(output.universe, [30, 50, 50, 70])
-            output['high'] = fuzz.trapmf(output.universe, [60, 80, 100, 100])
+            fuzzy_output['low'] = fuzz.trapmf(fuzzy_output.universe, [0, 0, 20, 40])
+            fuzzy_output['medium'] = fuzz.trapmf(fuzzy_output.universe, [30, 50, 50, 70])
+            fuzzy_output['high'] = fuzz.trapmf(fuzzy_output.universe, [60, 80, 100, 100])
         else:
             raise ValueError("FUZZY_TYPE must be 3 or 4")
     elif MEMBERSHIP_COUNT == 4:
         if FUZZY_TYPE == 3:
-            input_1['low'] = fuzz.trimf(input_1.universe, [0, 0, 30])
-            input_1['medium_low'] = fuzz.trimf(input_1.universe, [20, 40, 60])
-            input_1['medium_high'] = fuzz.trimf(input_1.universe, [40, 60, 80])
-            input_1['high'] = fuzz.trimf(input_1.universe, [70, 100, 100])
+            fuzzy_input_1['low'] = fuzz.trimf(fuzzy_input_1.universe, [0, 20, 40])
+            fuzzy_input_1['medium_low'] = fuzz.trimf(fuzzy_input_1.universe, [20, 40, 60])
+            fuzzy_input_1['medium_high'] = fuzz.trimf(fuzzy_input_1.universe, [40, 60, 80])
+            fuzzy_input_1['high'] = fuzz.trimf(fuzzy_input_1.universe, [60, 80, 100])
 
-            input_2['low'] = fuzz.trimf(input_2.universe, [0, 0, 30])
-            input_2['medium_low'] = fuzz.trimf(input_2.universe, [20, 40, 60])
-            input_2['medium_high'] = fuzz.trimf(input_2.universe, [40, 60, 80])
-            input_2['high'] = fuzz.trimf(input_2.universe, [70, 100, 100])
+            fuzzy_input_2['low'] = fuzz.trimf(fuzzy_input_2.universe, [0, 20, 40])
+            fuzzy_input_2['medium_low'] = fuzz.trimf(fuzzy_input_2.universe, [20, 40, 60])
+            fuzzy_input_2['medium_high'] = fuzz.trimf(fuzzy_input_2.universe, [40, 60, 80])
+            fuzzy_input_2['high'] = fuzz.trimf(fuzzy_input_2.universe, [60, 80, 100])
 
-            output['low'] = fuzz.trimf(output.universe, [0, 0, 30])
-            output['medium_low'] = fuzz.trimf(output.universe, [20, 40, 60])
-            output['medium_high'] = fuzz.trimf(output.universe, [40, 60, 80])
-            output['high'] = fuzz.trimf(output.universe, [70, 100, 100])
+            fuzzy_output['low'] = fuzz.trimf(fuzzy_output.universe, [0, 20, 40])
+            fuzzy_output['medium_low'] = fuzz.trimf(fuzzy_output.universe, [20, 40, 60])
+            fuzzy_output['medium_high'] = fuzz.trimf(fuzzy_output.universe, [40, 60, 80])
+            fuzzy_output['high'] = fuzz.trimf(fuzzy_output.universe, [60, 80, 100])
         elif FUZZY_TYPE == 4:
-            input_1['low'] = fuzz.trapmf(input_1.universe, [0, 0, 20, 40])
-            input_1['medium_low'] = fuzz.trapmf(input_1.universe, [20, 30, 40, 60])
-            input_1['medium_high'] = fuzz.trapmf(input_1.universe, [40, 60, 70, 80])
-            input_1['high'] = fuzz.trapmf(input_1.universe, [60, 80, 100, 100])
+            fuzzy_input_1['low'] = fuzz.trapmf(fuzzy_input_1.universe, [0, 0, 20, 40])
+            fuzzy_input_1['medium_low'] = fuzz.trapmf(fuzzy_input_1.universe, [20, 30, 40, 60])
+            fuzzy_input_1['medium_high'] = fuzz.trapmf(fuzzy_input_1.universe, [40, 60, 70, 80])
+            fuzzy_input_1['high'] = fuzz.trapmf(fuzzy_input_1.universe, [60, 80, 100, 100])
 
-            input_2['low'] = fuzz.trapmf(input_2.universe, [0, 0, 20, 40])
-            input_2['medium_low'] = fuzz.trapmf(input_2.universe, [20, 30, 40, 60])
-            input_2['medium_high'] = fuzz.trapmf(input_2.universe, [40, 60, 70, 80])
-            input_2['high'] = fuzz.trapmf(input_2.universe, [60, 80, 100, 100])
+            fuzzy_input_2['low'] = fuzz.trapmf(fuzzy_input_2.universe, [0, 0, 20, 40])
+            fuzzy_input_2['medium_low'] = fuzz.trapmf(fuzzy_input_2.universe, [20, 30, 40, 60])
+            fuzzy_input_2['medium_high'] = fuzz.trapmf(fuzzy_input_2.universe, [40, 60, 70, 80])
+            fuzzy_input_2['high'] = fuzz.trapmf(fuzzy_input_2.universe, [60, 80, 100, 100])
 
-            output['low'] = fuzz.trapmf(output.universe, [0, 0, 20, 40])
-            output['medium_low'] = fuzz.trapmf(output.universe, [20, 30, 40, 60])
-            output['medium_high'] = fuzz.trapmf(output.universe, [40, 60, 70, 80])
-            output['high'] = fuzz.trapmf(output.universe, [60, 80, 100, 100])
+            fuzzy_output['low'] = fuzz.trapmf(fuzzy_output.universe, [0, 0, 20, 40])
+            fuzzy_output['medium_low'] = fuzz.trapmf(fuzzy_output.universe, [20, 30, 40, 60])
+            fuzzy_output['medium_high'] = fuzz.trapmf(fuzzy_output.universe, [40, 60, 70, 80])
+            fuzzy_output['high'] = fuzz.trapmf(fuzzy_output.universe, [60, 80, 100, 100])
         else:
             raise ValueError("FUZZY_TYPE must be 3 or 4")
     else:
@@ -70,8 +69,8 @@ def create_membership_functions():
 
 
 def generate_input():
-    first = np.random.randint(0, 101)
-    second = np.random.randint(0, 101)
+    first = np.random.random() * 100
+    second = np.random.random() * 100
     return first, second
 
 
@@ -82,27 +81,26 @@ def evaluate_output(input_1, input_2, sim):
     return sim.output['output']
 
 
-def view():
-    global output_sim, input_1, input_2, output
+def view(output_sim, fuzzy_input_1, fuzzy_input_2, fuzzy_output):
     output_sim.input['first_input'] = 50
     output_sim.input['second_input'] = 50
     output_sim.compute()
 
-    input_1.view()
-    input_2.view()
-    output.view(sim=output_sim)
+    fuzzy_input_1.view()
+    fuzzy_input_2.view()
+    fuzzy_output.view(sim=output_sim)
 
 
 if __name__ == '__main__':
-    create_membership_functions()
-    output_sim = simulate()
-    view()
+    create_membership_functions(fuzzy_input_1, fuzzy_input_2, fuzzy_output)
+    output_sim = simulate(fuzzy_input_1, fuzzy_input_2, fuzzy_output)
+    view(output_sim, fuzzy_input_1, fuzzy_input_2, fuzzy_output)
 
     outputs = set()
-    for i in range(1000):
-        input_1, input_2 = generate_input()
-        output_value = evaluate_output(input_1, input_2, output_sim)
+    for i in range(2000):
+        fuzzy_input_1, fuzzy_input_2 = generate_input()
+        output_value = evaluate_output(fuzzy_input_1, fuzzy_input_2, output_sim)
         outputs.add(output_value)
         with open('output.csv', 'a') as f:
-            f.write("{},{},{}\n".format(input_1, input_2, output_value))
+            f.write("{},{},{}\n".format(fuzzy_input_1, fuzzy_input_2, output_value))
     print(len(outputs))

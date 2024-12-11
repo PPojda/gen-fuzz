@@ -1,11 +1,26 @@
 import copy
 import os
 import random
+import time
 from multiprocessing import Pool
+
+import matplotlib.pyplot as plt
+import pandas as pd
 from sklearn.metrics import mean_squared_error
 from utils import *
 
 random.seed = SEED_VALUE
+MUTATION_PROBABILITY = 0.5
+
+
+def measure_time(func):
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        print(f"{func.__name__} - time: {time.time() - start}")
+        return result
+
+    return wrapper
 
 
 def input_csv(input):
@@ -25,15 +40,32 @@ def rating_function(inputs, outputs, output_sim):
     return mean_squared_error(outputs, fuzz_outputs)
 
 
+def deep_copy(chromosome: pd.Series):
+    return pd.Series(chromosome.values.copy(), index=chromosome.index.copy())
+
+
 def correct_chromosome(chromosome: pd.Series):
-    print(chromosome)
-    chromosome_copy = chromosome.copy()
+    chromosome_copy = deep_copy(chromosome)
     for column in chromosome.index.get_level_values('type').unique():
-        if column == 'ratings':
-            continue
-        sorted_s = chromosome_copy[column].apply(lambda x: sorted(x)[1]).sort_values().index
-        chromosome_copy[column] = chromosome[column].loc[sorted_s]
-    print(chromosome_copy)
+
+        sorted_s = chromosome_copy[column].apply(lambda x: sorted(x)[1]).sort_values(ascending=True).index
+        chromosome_copy[column] = chromosome_copy[column].loc[sorted_s]
+
+        for order in chromosome_copy[column].index:
+            i = random.randint(0, FUZZY_TYPE - 1)
+            if order == 0 and 0 not in chromosome_copy[column][order]:
+                chromosome_copy[column][order][i] = COLUMN_RANGE_MAP[column][0]
+            if order == FUZZY_TYPE - 1 and COLUMN_RANGE_MAP[column][1] - 1 not in chromosome_copy[column][order]:
+                chromosome_copy[column][order][i] = COLUMN_RANGE_MAP[column][1] - 1
+
+        for order in chromosome_copy[column].index.values[:-1]:
+            if max(chromosome_copy[column][order]) < min(chromosome_copy[column][order + 1]):
+                max_value = max(chromosome_copy[column][order])
+                max_value_index = chromosome_copy[column][order].index(max_value)
+                min_value = min(chromosome_copy[column][order+1])
+                min_value_index = chromosome_copy[column][order+1].index(min_value)
+                chromosome_copy[column][order][max_value_index] = min_value
+                chromosome_copy[column][order + 1][min_value_index] = max_value
     return chromosome_copy
 
 
@@ -49,7 +81,7 @@ def build_starting_chromosome():
     return [*first_variable, *second_variable, *output_variable]
 
 
-def build_starting_population(input_values, outputs):
+def build_starting_population(input_values, outputs, fuzzy_input_1, fuzzy_input_2, fuzzy_output):
     names = ['first_input', 'second_input', 'output']
     columns = pd.MultiIndex.from_product([names, range(MEMBERSHIP_COUNT)], names=('type', 'order'))
     starting_chromosome = [build_starting_chromosome() for _ in range(POPULATION)]
@@ -57,26 +89,29 @@ def build_starting_population(input_values, outputs):
         columns=columns,
         data=starting_chromosome)
 
-    starting_chromosomes['ratings'] = starting_chromosomes.apply(
-        lambda row: rate_chromosome(row, input_values, outputs=outputs), axis=1
-    )
-    starting_chromosomes.sort_values(by=['ratings'], inplace=True)
+    corrected_chromosomes = starting_chromosomes.apply(lambda row: correct_chromosome(row), axis=1)
+    rated_population = rate_new_population(corrected_chromosomes, Pool(), *input_values, outputs,
+                                           fuzzy_input_1, fuzzy_input_2, fuzzy_output)
+    rated_population.sort_values(by=['ratings'], inplace=True)
 
-    return starting_chromosomes
+    return rated_population
 
 
 def mutate(chromosome: pd.Series):
     mutated_chromosome = copy.deepcopy(chromosome)
     for column, order in mutated_chromosome.index:
         r = random.uniform(0, 1)
-        if r > 0.5:
+        if r < MUTATION_PROBABILITY:
             i = random.randint(0, FUZZY_TYPE - 1)
-            mutated_chromosome.loc[column, order][i] = random.randrange(*COLUMN_RANGE_MAP[column])
-        if order == FUZZY_TYPE - 1 and r > 0.5:
-            i = random.randint(0, MEMBERSHIP_COUNT - 1)
-            j = random.randint(0, MEMBERSHIP_COUNT - 1)
-            mutated_chromosome.loc[column, i], mutated_chromosome.loc[column, j] = mutated_chromosome.loc[
-                column, j], mutated_chromosome.loc[column, i]
+            j = random.randint(0, 1)
+
+            if j == 0:
+                mutated_chromosome.loc[column, order][i] = (mutated_chromosome.loc[column, order][i] + random.randrange(
+                    *COLUMN_RANGE_MAP[column]) // int(1 / MUTATE_RANGE)) % COLUMN_RANGE_MAP[column][1]
+            else:
+                mutated_chromosome.loc[column, order][i] = (mutated_chromosome.loc[column, order][i] - random.randrange(
+                    *COLUMN_RANGE_MAP[column]) // int(1 / MUTATE_RANGE)) % COLUMN_RANGE_MAP[column][1]
+            mutated_chromosome = correct_chromosome(mutated_chromosome)
     return mutated_chromosome
 
 
@@ -87,7 +122,7 @@ def cross(first_chromosome: pd.Series, second_chromosome: pd.Series):
             new_chromosome[column, order] = copy.deepcopy(second_chromosome[column, order])
         else:
             new_chromosome[column, order] = copy.deepcopy(first_chromosome[column, order])
-    return new_chromosome
+    return correct_chromosome(new_chromosome)
 
 
 def cross_alternative(first_chromosome: pd.Series, second_chromosome: pd.Series):
@@ -102,18 +137,19 @@ def cross_alternative(first_chromosome: pd.Series, second_chromosome: pd.Series)
             start = random.randint(0, FUZZY_TYPE - 2)
             second_chromosome_values = copy.deepcopy(second_chromosome[column, order])
             new_chromosome[column, order][start:FUZZY_TYPE] = sorted(second_chromosome_values)[start:FUZZY_TYPE]
-    return new_chromosome
+    return correct_chromosome(new_chromosome)
 
 
-def rate_chromosome(chromosome: pd.Series, input_values, outputs):
-    update_membership_functions(chromosome)
-    output_sim = simulate()
+def rate_chromosome(chromosome: pd.Series, input_values, outputs, fuzzy_input_1, fuzzy_input_2, fuzzy_output):
+    update_membership_functions(chromosome=chromosome, fuzzy_input_1=fuzzy_input_1, fuzzy_input_2=fuzzy_input_2,
+                                fuzzy_output=fuzzy_output)
+    output_sim = simulate(fuzzy_input_1, fuzzy_input_2, fuzzy_output)
     return rating_function(input_values, outputs, output_sim)
 
 
 def cross_and_mutate(parents: pd.DataFrame):
     parents.drop('ratings', axis=1, inplace=True, level='type')
-    child = cross(parents.iloc[0], parents.iloc[1])
+    child = cross_alternative(parents.iloc[0], parents.iloc[1])
     child = mutate(child)
     return child
 
@@ -138,8 +174,8 @@ def generate_new_population(parents_population, pool):
     return new
 
 
-def save_data(chromosome: pd.Series):
-    directory = f"{FUZZY_TYPE}-{MEMBERSHIP_COUNT}-{RANKING_CAPACITY}-{OLD_POPULATION}-{SEED_VALUE}"
+def save_data(chromosome: pd.Series, limit):
+    directory = f"{FUZZY_TYPE}-{MEMBERSHIP_COUNT}-{chromosome['ratings'].values[0]}"
     if not os.path.exists(directory):
         os.makedirs(directory)
 
@@ -152,10 +188,26 @@ def save_data(chromosome: pd.Series):
         file.write(f"RANKING_CAPACITY: {RANKING_CAPACITY}\n")
         file.write(f"OLD_POPULATION: {OLD_POPULATION}\n")
         file.write(f"Random Seed: {SEED_VALUE}\n")
-        file.write(f"Deffuzification Method: {output.defuzzify_method}\n")
+        file.write(f"Deffuzification Method: {fuzzy_output.defuzzify_method}\n")
+        file.write(f"First Input Range: {FIRST_INPUT_RANGE}\n")
+        file.write(f"Second Input Range: {SECOND_INPUT_RANGE}\n")
+        file.write(f"Output Range: {OUTPUT_RANGE}\n")
+        file.write(f"Mutate Range: {MUTATE_RANGE}\n")
+        file.write(f"Limit: {limit}\n")
+        file.write(f"Mutation Probability: {MUTATION_PROBABILITY}\n")
 
 
-def optimize(population: pd.DataFrame, count, limit):
+@measure_time
+def rate_new_population(new_population, pool, first_values, second_values, output_values, fuzzy_input_1, fuzzy_input_2,
+                        fuzzy_output):
+    new_population['ratings'] = pool.starmap(rate_chromosome,
+                                             [(row, (first_values, second_values), output_values, fuzzy_input_1,
+                                               fuzzy_input_2, fuzzy_output)
+                                              for _, row in new_population.iterrows()])
+    return new_population
+
+
+def optimize(population: pd.DataFrame, count, limit, fuzzy_input_1, fuzzy_input_2, fuzzy_output):
     best = population.iloc[0]
     with Pool() as pool:
         while count < limit:
@@ -163,9 +215,8 @@ def optimize(population: pd.DataFrame, count, limit):
             print(best)
             population.drop(population.iloc[RANKING_CAPACITY:].index, inplace=True)
             new_population = generate_new_population(population, pool)
-            new_population['ratings'] = pool.starmap(rate_chromosome,
-                                                     [(row, (first_values, second_values), output_values)
-                                                      for _, row in new_population.iterrows()])
+            new_population = rate_new_population(new_population, pool, first_values, second_values, output_values,
+                                                 fuzzy_input_1, fuzzy_input_2, fuzzy_output)
             new_population.sort_values(by=['ratings'], inplace=True)
             if best['ratings'].values[0] <= new_population.iloc[0]['ratings'].values[0]:
                 count += 1
@@ -175,17 +226,42 @@ def optimize(population: pd.DataFrame, count, limit):
     return best
 
 
+def print_outputs(inputs, outputs, output_sim):
+    fuzz_outputs = []
+
+    for first, second in zip(*inputs):
+        output_sim.input['first_input'] = first
+        output_sim.input['second_input'] = second
+        output_sim.compute()
+        fuzz_outputs.append(output_sim.output.get('output'))
+
+    sorted_indices = sorted(range(len(outputs)), key=lambda k: outputs[k])
+    sorted_outputs = [outputs[i] for i in sorted_indices]
+    sorted_fuzz_outputs = [fuzz_outputs[i] for i in sorted_indices]
+
+    plt.figure(figsize=(10, 10))
+    plt.plot(sorted_outputs, label='Real', linestyle='-', marker='o')
+    plt.plot(sorted_fuzz_outputs, label='Fuzzy', linestyle='--', marker='x')
+    plt.xlabel('Sample Index (Sorted)')
+    plt.ylabel('Output Value')
+    plt.legend()
+    plt.show()
+
+
 if __name__ == '__main__':
     input_data = input_csv('output.csv')
     first_values = [float(row.split(',')[0]) for row in input_data]
     second_values = [float(row.split(',')[1]) for row in input_data]
     output_values = [float(row.split(',')[2].strip()) for row in input_data]
 
-    population = build_starting_population(input_values=(first_values, second_values), outputs=output_values)
+    population = build_starting_population(input_values=(first_values, second_values), outputs=output_values,
+                                           fuzzy_input_1=fuzzy_input_1, fuzzy_input_2=fuzzy_input_2,
+                                           fuzzy_output=fuzzy_output)
 
     count = 0
-    limit = 0
-    #best_chromosome = optimize(population, count, limit)
-    correct_chromosome(population.iloc[0])
-    # draw_best(best_chromosome)
-    # save_data(best_chromosome)
+    limit = 15
+    best_chromosome = optimize(population=population, count=count, limit=limit, fuzzy_input_1=fuzzy_input_1,
+                               fuzzy_input_2=fuzzy_input_2, fuzzy_output=fuzzy_output)
+    draw_best(best_chromosome, fuzzy_input_1, fuzzy_input_2, fuzzy_output)
+    save_data(best_chromosome, limit)
+    print_outputs((first_values, second_values), output_values, simulate(fuzzy_input_1, fuzzy_input_2, fuzzy_output))
